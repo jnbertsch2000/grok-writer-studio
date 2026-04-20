@@ -8,11 +8,11 @@ import copy
 
 st.set_page_config(page_title="Grok Writing Studio", layout="wide")
 st.title("✍️ Grok Writing Studio")
-st.caption("Your full AI-powered book writing studio — projects now 100% isolated")
+st.caption("Your full AI-powered book writing studio — projects 100% isolated")
 
 os.makedirs("projects", exist_ok=True)
 
-# ====================== PRICING ESTIMATES ======================
+# ====================== PRICING ======================
 MODEL_PRICING = {
     "grok-4.20-reasoning": {"input": 2.00, "output": 6.00},
     "grok-4-1-fast-reasoning": {"input": 0.20, "output": 0.50},
@@ -96,13 +96,37 @@ with st.sidebar:
     model = st.selectbox("Model", list(MODEL_PRICING.keys()), index=1)  # Default to fast model
 
     st.divider()
-    st.header("💰 Credit Usage (This Session)")
+    st.header("💰 Credit Usage (Session)")
     st.write(f"**Last AI call:** ${st.session_state.last_call_cost:.4f}")
     st.write(f"**Session total:** ${st.session_state.session_cost:.4f}")
     if st.button("Reset Session Cost"):
         st.session_state.session_cost = 0.0
         st.session_state.last_call_cost = 0.0
         st.rerun()
+
+    st.divider()
+    st.header("💾 Project Backup")
+    col_dl, col_ul = st.columns(2)
+    with col_dl:
+        if st.button("💾 Download Current Project"):
+            st.download_button(
+                label="Download JSON",
+                data=json.dumps(data, indent=2),
+                file_name=f"{data.get('project_name', 'project')}.json",
+                mime="application/json"
+            )
+    with col_ul:
+        uploaded = st.file_uploader("📤 Upload Project", type="json", key="upload_project")
+        if uploaded:
+            try:
+                uploaded_data = json.loads(uploaded.getvalue())
+                st.session_state.data = uploaded_data
+                st.session_state.current_project = uploaded_data.get("project_name", "Project")
+                save_project(st.session_state.current_project, uploaded_data)
+                st.success("✅ Project loaded successfully!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Failed to load file: {e}")
 
 # ====================== ADD / DELETE / EDIT PROJECT ======================
 if st.session_state.get("show_add_form"):
@@ -192,11 +216,9 @@ def call_grok(prompt, image_bytes=None, temperature=0.7):
             temperature=temperature,
             max_tokens=4000
         )
-        
         prompt_tokens = response.usage.prompt_tokens
         completion_tokens = response.usage.completion_tokens
-        cost = estimate_cost(prompt_tokens, completion_tokens, model)
-        
+        estimate_cost(prompt_tokens, completion_tokens, model)
         return response.choices[0].message.content
     except Exception as e:
         return f"❌ Error: {str(e)}"
@@ -307,7 +329,7 @@ with tab2:
     
     if st.button("🔄 AI Update Characters from Manuscript"):
         full_text = "\n\n".join(ch["content"] for ch in data["chapters"])
-        prompt = f"""Read the full manuscript and update every character with detailed attributes (age, race, looks, relationships, personality, role).
+        prompt = f"""Read the full manuscript and update every character with detailed attributes.
 Check for inconsistencies.
 Current characters: {json.dumps(data['characters'], indent=2) if data['characters'] else 'None'}
 Manuscript: {full_text[:15000]}"""
@@ -426,4 +448,4 @@ with tab4:
         with st.spinner("Comparing..."):
             st.markdown(call_grok(prompt))
 
-st.success("✅ Full code with credit tracker and complete isolation loaded.")
+st.success("✅ Full code with Download/Upload, Credit Tracker, and complete isolation loaded.")
